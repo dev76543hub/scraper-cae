@@ -2,11 +2,33 @@
   "name": "scraper-sernac",
   "version": "1.0.0",
   "main": "scraper-sernac.js",
+  "type": "module",
   "scripts": {
     "start": "node scraper-sernac.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "playwright": "^1.44.0"
+    "node-fetch": "^3.3.2"
+  }
+}
+
+
+
+"scripts": {
+  "start": "node scraper-sernac.js",
+  "postinstall": "npx playwright install"
+}
+
+
+{
+  "name": "scraper-sernac",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node scraper-sernac.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2"
   }
 }

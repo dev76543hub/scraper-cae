@@ -1,44 +1,55 @@
-﻿// scraper-sernac.js
-const express = require('express');
-const { chromium } = require('playwright'); // Chromium headless
+﻿import express from 'express';
+import fetch from 'node-fetch';
+
 const app = express();
+const PORT = process.env.PORT || 10000;
 
-const PORT = process.env.PORT || 3000;
-const SERNAC_URL = 'https://www.sernac.cl/portal/619/w3-article-84607.html';
-
-app.get('/cae', async (req, res) => {
-  let browser;
+app.get('/', async (req, res) => {
   try {
-    browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
-    await page.goto(SERNAC_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
-
-    // Esperar a que la tabla cargue
-    await page.waitForSelector('table', { timeout: 15000 });
-
-    // Extraer todos los bancos y CAE
-    const data = await page.$$eval('table tr', rows => {
-      return rows.slice(1) // saltar encabezado
-        .map(row => {
-          const cells = row.querySelectorAll('td');
-          if (cells.length >= 2) {
-            return {
-              banco: cells[0].innerText.trim(),
-              cae: cells[1].innerText.trim().replace('%','')
-            };
-          }
-          return null;
-        })
-        .filter(x => x !== null);
+    // Petición al endpoint de Power BI
+    const response = await fetch('https://wabi-paas-1-scus-api.analysis.windows.net/public/reports/querydata?synchronous=true', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0',
+      },
+      body: JSON.stringify({
+        // Este body se puede ajustar según los datos que viste en DevTools
+        version: 1,
+        queries: [
+          {
+            query: "dataset", // Ajusta según tu estructura JSON si es necesario
+          },
+        ],
+        modelId: "reportModelId" // Ajusta según el ID real del reporte
+      })
     });
 
-    res.json({ success: true, bancos: data });
+    if (!response.ok) throw new Error('Error al consultar Power BI');
+
+    const data = await response.json();
+
+    // Aquí hay que mapear los datos JSON al formato de bancos
+    // 🔹 Este ejemplo asume que los CAEs vienen en data.results[0].result.data.DS[0].PH[0].DM0[0].S
+    // Debes inspeccionar tu JSON real y ajustar las rutas
+    const bancosCAE = {};
+    if (data.results?.[0]?.result?.data?.dsr?.DS?.[0]?.PH?.[0]?.DM0?.[0]?.S) {
+      const raw = data.results[0].result.data.dsr.DS[0].PH[0].DM0[0].S;
+      // raw es un array de objetos con Name y Value
+      raw.forEach(item => {
+        const bankName = item.N; // o el campo correcto que identifique el banco
+        const cae = parseFloat(item.V); // o el campo correcto para CAE
+        bancosCAE[bankName] = cae;
+      });
+    }
+
+    res.json({ success: true, bancos: bancosCAE });
   } catch (err) {
     console.error('Error scraping CAE:', err.message);
-    res.status(500).json({ success: false, message: 'Error scraping CAE' });
-  } finally {
-    if (browser) await browser.close();
+    res.json({ success: false, message: 'Error scraping CAE', error: err.message });
   }
 });
 
-app.listen(PORT, () => console.log(`Scraper SERNAC corriendo en puerto ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Scraper SERNAC corriendo en puerto ${PORT}`);
+});
