@@ -1,55 +1,60 @@
 ﻿import express from 'express';
+import cors from 'cors';
 import fetch from 'node-fetch';
+import { chromium } from 'playwright';
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-app.get('/', async (req, res) => {
-  try {
-    // Petición al endpoint de Power BI
-    const response = await fetch('https://wabi-paas-1-scus-api.analysis.windows.net/public/reports/querydata?synchronous=true', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0',
-      },
-      body: JSON.stringify({
-        // Este body se puede ajustar según los datos que viste en DevTools
-        version: 1,
-        queries: [
-          {
-            query: "dataset", // Ajusta según tu estructura JSON si es necesario
-          },
-        ],
-        modelId: "reportModelId" // Ajusta según el ID real del reporte
-      })
-    });
+app.use(cors());
+app.use(express.json());
 
-    if (!response.ok) throw new Error('Error al consultar Power BI');
+async function scrapeCAE() {
+    try {
+        // Ejemplo: abrir página de BancoEstado
+        const browser = await chromium.launch({ headless: true });
+        const page = await browser.newPage();
 
-    const data = await response.json();
+        // Cambia esto por la URL real de los datos de SERNAC/Power BI que necesites
+        const url = 'https://wabi-paas-1-scus-api.analysis.windows.net/public/reports/querydata?synchronous=true';
 
-    // Aquí hay que mapear los datos JSON al formato de bancos
-    // 🔹 Este ejemplo asume que los CAEs vienen en data.results[0].result.data.DS[0].PH[0].DM0[0].S
-    // Debes inspeccionar tu JSON real y ajustar las rutas
-    const bancosCAE = {};
-    if (data.results?.[0]?.result?.data?.dsr?.DS?.[0]?.PH?.[0]?.DM0?.[0]?.S) {
-      const raw = data.results[0].result.data.dsr.DS[0].PH[0].DM0[0].S;
-      // raw es un array de objetos con Name y Value
-      raw.forEach(item => {
-        const bankName = item.N; // o el campo correcto que identifique el banco
-        const cae = parseFloat(item.V); // o el campo correcto para CAE
-        bancosCAE[bankName] = cae;
-      });
+        // POST a la API de Power BI
+        const body = {
+            // Ajusta según el request que viste en DevTools
+            // "queries": [...], etc.
+        };
+
+        const response = await fetch(url, {
+            method: 'POST',
+            body: JSON.stringify(body),
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+        await browser.close();
+
+        // Aquí extraes el CAE de cada banco del JSON
+        const caePorBanco = {}; // { "BancoEstado": "36.88%", ... }
+
+        // Ejemplo dummy, reemplaza con lógica real:
+        caePorBanco["BancoEstado"] = data?.results?.[0]?.result?.data?.DSR || "0%";
+
+        return { success: true, data: caePorBanco };
+    } catch (error) {
+        console.error("Error scraping CAE:", error);
+        return { success: false, message: "Error scraping CAE" };
     }
+}
 
-    res.json({ success: true, bancos: bancosCAE });
-  } catch (err) {
-    console.error('Error scraping CAE:', err.message);
-    res.json({ success: false, message: 'Error scraping CAE', error: err.message });
-  }
+app.get('/', async (req, res) => {
+    const result = await scrapeCAE();
+    res.json(result);
 });
 
 app.listen(PORT, () => {
-  console.log(`Scraper SERNAC corriendo en puerto ${PORT}`);
+    console.log(`Scraper SERNAC corriendo en puerto ${PORT}`);
+    console.log(`==> Your service is live 🎉`);
 });

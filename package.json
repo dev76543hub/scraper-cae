@@ -1,6 +1,7 @@
 ﻿{
   "name": "scraper-sernac",
   "version": "1.0.0",
+  "type": "module",
   "main": "scraper-sernac.js",
   "scripts": {
     "start": "node scraper-sernac.js",
@@ -9,6 +10,7 @@
   "dependencies": {
     "express": "^4.18.2",
     "playwright": "^1.37.0",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "node-fetch": "^3.3.2"
   }
 }
